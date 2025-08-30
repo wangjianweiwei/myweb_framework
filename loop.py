@@ -1,4 +1,5 @@
 import selectors
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from transport import SocketTransport
 
@@ -14,7 +15,10 @@ class Handle:
         self._args = args
 
     def run(self):
-        self._callback(*self._args)
+        try:
+            self._callback(*self._args)
+        except Exception as e:
+            traceback.print_exc()
 
 
 class Loop:
@@ -24,7 +28,7 @@ class Loop:
             selector = selectors.DefaultSelector()
         self._selector = selector
         self._stop = False
-        self._pool = ThreadPoolExecutor(max_workers=10)
+        self._pool = ThreadPoolExecutor(max_workers=20)
 
     def start_serving(self, sock, backlog, protocol_cls):
         self.add_reader(sock, self.accept_connections, sock, backlog, protocol_cls)
@@ -35,31 +39,69 @@ class Loop:
                 conn, addr = sock.accept()
             except (BlockingIOError, InterruptedError):
                 return
-            conn.setblocking(False)
-            self.make_transport(conn, addr, protocol_cls)
+            else:
+                conn.setblocking(False)
+                self.make_transport(conn, addr, protocol_cls)
 
     def make_transport(self, conn, addr, protocol_cls):
         return SocketTransport(conn, self, addr, protocol_cls)
 
     def add_reader(self, sock, callback, *args):
         handle = Handle(callback, args)
-        self._selector.register(sock, selectors.EVENT_READ, handle)
+        try:
+            key = self._selector.get_key(sock)
+        except KeyError:
+            self._selector.register(sock, selectors.EVENT_READ, (handle, None))
+        else:
+            mask, (reader, writer) = key.events, key.data
+            self._selector.modify(sock, mask | selectors.EVENT_READ, (handle, writer))
 
     def remove_reader(self, sock):
-        self._selector.unregister(sock)
+        try:
+            key = self._selector.get_key(sock)
+        except KeyError:
+            return
+        else:
+            mask, (reader, writer) = key.events, key.data
+            mask &= ~selectors.EVENT_READ
+            if not mask:
+                self._selector.unregister(sock)
+            else:
+                self._selector.modify(sock, mask, (None, writer))
 
     def add_writer(self, sock, callback, *args):
         handle = Handle(callback, args)
-        self._selector.register(sock, selectors.EVENT_WRITE, handle)
+        try:
+            key = self._selector.get_key(sock)
+        except KeyError:
+            self._selector.register(sock, selectors.EVENT_WRITE, (None, handle))
+        else:
+            mask, (reader, writer) = key.events, key.data
+            self._selector.modify(sock, mask | selectors.EVENT_WRITE, (reader, handle))
 
     def remove_writer(self, sock):
-        self._selector.unregister(sock)
+        try:
+            key = self._selector.get_key(sock)
+        except KeyError:
+            return
+        else:
+            mask, (reader, writer) = key.events, key.data
+            mask &= ~selectors.EVENT_WRITE
+            if not mask:
+                self._selector.unregister(sock)
+            else:
+                self._selector.modify(sock, mask, (reader, None))
 
     def run_once(self):
-        events = self._selector.select(1.0)
+        events = self._selector.select(0.5)
         for key, mask in events:
-            sock, handle = key.fileobj, key.data
-            self._pool.submit(handle.run)
+            sock, (reader, writer) = key.fileobj, key.data
+            if mask & selectors.EVENT_READ and reader is not None:
+                self._pool.submit(reader.run)
+                # reader.run()
+            if mask & selectors.EVENT_WRITE and writer is not None:
+                self._pool.submit(writer.run)
+                # writer.run()
 
     def stop(self):
         self._stop = True

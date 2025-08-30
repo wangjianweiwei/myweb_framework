@@ -17,7 +17,7 @@ class SocketTransport(object):
             # 可能会没发送完
             data = data[n:]
             if not data:
-                self.sock.close()
+                self.close()
                 return
         # 如果写入失败或没有写完则使用事件监听，可写时再次进行写入
         self.loop.add_writer(self.sock, self.write_ready, data)
@@ -28,14 +28,29 @@ class SocketTransport(object):
         except BlockingIOError:
             pass
         else:
-            self.loop.remove_reader(self.sock)
+            self.close()
 
     def read_ready(self):
-        data = self.sock.recv(1024)
+        if self.sock.fileno() == -1:
+            return
+        try:
+            data = self.sock.recv(256 * 1024)
+        except (BlockingIOError, InterruptedError):
+            return
+
         # 如果没有数据了，就移除事件监听，减少资源占用
         if not data:
             self.loop.remove_reader(self.sock)
-            self.sock.close()
             return
         # 接收完数据， 调用协议层进行数据处理
         self.protocol.data_received(data)
+
+    def close(self):
+
+        self.loop.remove_reader(self.sock)
+        self.loop.remove_writer(self.sock)
+        print(f"Closing transport: {self.sock}")
+        try:
+            self.sock.close()
+        except Exception:
+            print("Exception")

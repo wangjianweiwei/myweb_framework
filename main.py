@@ -2,6 +2,7 @@ from app import App, Response
 from server import Server
 from protocol import Protocol
 from loop import Loop
+import time
 
 app = App()
 
@@ -13,6 +14,8 @@ def index(request):
 
 @app.get('/get2')
 def foo(request):
+    print("foo")
+    time.sleep(0.2)
     return Response(body=request.__dict__)
 
 

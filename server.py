@@ -15,7 +15,7 @@ class Server:
         signal.SIGTERM,
     ]
 
-    def __init__(self, app, protocol, loop, host="127.0.0.1", port=8989, backlog=100):
+    def __init__(self, app, protocol, loop, host="127.0.0.1", port=8989, backlog=1000):
         self._app = app
         self._host = host
         self._port = port
