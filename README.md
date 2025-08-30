@@ -9,6 +9,14 @@ uvicorn使用的是asyncio，之前看了asyncio的源码，但是和web服务�
 - 实现了`http`协议的解析(简单的字符串处理)
 - 实现了简单的web框架
 
-有以下问题：
+## 学习到的知识
+
+## 有以下问题
 
 - [x] 使用ab测试时，不能被正常测试，应该socket处理有问题`ab -n 50 -c 50 http://127.0.0.1:8989/get2`
+- [ ] 支持keep-live
+- [ ] 使用asyncio实现异步，提高并发能力
+- [ ] 支持websocket
+- [ ] 支持sse
+- [ ] 支持SSL
+- [ ] 兼容wsgi/asgi协议
