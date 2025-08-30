@@ -11,4 +11,4 @@ uvicorn使用的是asyncio，之前看了asyncio的源码，但是和web服务�
 
 有以下问题：
 
-- [已修复]使用ab测试时，不能被正常测试，应该socket处理有问题`ab -n 50 -c 50 http://127.0.0.1:8989/get2`
+- [x] 使用ab测试时，不能被正常测试，应该socket处理有问题`ab -n 50 -c 50 http://127.0.0.1:8989/get2`
